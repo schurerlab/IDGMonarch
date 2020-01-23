@@ -73,14 +73,14 @@ def process_objects(row):
     print(object)
     cur.execute("SELECT distinct object from `disease-phenotype` where subject = '" + object + "'")
     phenotypes = [str(pheno[0]) for pheno in cur.fetchall()]
-    if not len(phenotypes):
+    if not phenotypes:
         return True
     try:
         # Example query https://api.monarchinitiative.org/api/sim/search?id=MP%3A0000849&id=HP%3A0001765&limit=100&taxon=9606
         params = {
             'id': phenotypes,
             'metric': 'phenodigm',
-            'limit': 10000,
+            'limit': 100,  # set this as needed, 10k for max diseases
             'taxon': '9606'
         }
         response = requests.get('https://api.monarchinitiative.org/api/sim/search', params=params)
@@ -88,7 +88,7 @@ def process_objects(row):
         print ("Error opening api/sim/search with params: {}".format(params))
         return True
     data = json.load(response)
-    if "matches" in data and len(data['matches']):
+    if "matches" in data and data['matches']:
         for r in data['matches']:
             if ('id' not in r):
                 print (r)
