@@ -72,28 +72,34 @@ def process_objects(row):
     object = row[0]
     print(object)
     cur.execute("SELECT distinct object from `disease-phenotype` where subject = '" + object + "'")
-    phenotypes = cur.fetchall()
-    profile = "&id=".join(str(i[0]) for i in phenotypes)
-    if len(profile) < 1:
+    phenotypes = [str(pheno[0]) for pheno in cur.fetchall()]
+    if not phenotypes:
         return True
     try:
-        response = requests.get('http://owlsim3.monarchinitiative.org/api/match/phenodigm?id='+profile)
+        # Example query https://api.monarchinitiative.org/api/sim/search?id=MP%3A0000849&id=HP%3A0001765&limit=100&taxon=9606
+        params = {
+            'id': phenotypes,
+            'metric': 'phenodigm',
+            'limit': 100,  # set this as needed, 10k for max diseases
+            'taxon': '9606'
+        }
+        response = requests.get('https://api.monarchinitiative.org/api/sim/search', params=params)
     except:
-        print ("Error opening "+'http://owlsim3.monarchinitiative.org/api/match/phenodigm?id='+profile)
+        print ("Error opening api/sim/search with params: {}".format(params))
         return True
     data = json.load(response)
-    if "matches" in data and len(data['matches']) > 0:
+    if "matches" in data and data['matches']:
         for r in data['matches']:
-            if ('matchId' not in r):
+            if ('id' not in r):
                 print (r)
-            if r['matchId'] is not object:
-                if ((r['matchId'],object) in geneDisease):
+            if r['id'] is not object:
+                if ((r['id'],object) in geneDisease):
                     sql = "UPDATE `gene-disease` SET O2S =%s WHERE object=%s AND subject = %s"
-                    cur.execute(sql, (str(r['rawScore']), object, r['matchId']))
+                    cur.execute(sql, (str(r['score']), object, r['id']))
                 else:
                     sql = "INSERT INTO `gene-disease-orphan` (subject,subject_label,object,object_label,score) VALUES (%s,%s,%s,%s,%s)"
                     cur.execute(sql, (
-                    object, data['matches'][0]['matchLabel'], r['matchId'], r['matchLabel'], str(r['rawScore'])))
+                    object, data['matches'][0]['label'], r['id'], r['label'], str(r['score'])))
 
 pool.map(process_subjects,subjects) #using parallel processing get matches for all subjects in gene-disease table
 pool.map(process_objects,objects) #using parallel processing get matches for all objects in gene-disease table
